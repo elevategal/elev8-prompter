@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0A0B0D"/>
+  <rect x="72" y="112" width="368" height="220" rx="24" fill="#14161A" stroke="#2A2E36" stroke-width="4"/>
+  <g fill="#F2EFE9" font-family="Heebo, system-ui, sans-serif" font-weight="900">
+    <text x="256" y="200" font-size="64" text-anchor="middle">ELEV8</text>
+    <text x="256" y="278" font-size="34" text-anchor="middle" fill="#7FD1C8" font-weight="500">· פרומפטר ·</text>
+  </g>
+  <circle cx="256" cy="400" r="34" fill="#FF4438"/>
+  <polygon points="246,384 246,416 274,400" fill="#0A0B0D"/>
+</svg>

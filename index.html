@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0A0B0D">
+<title>Elev8 Prompter</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0D; --panel:#14161A; --panel2:#1C1F25; --line:#2A2E36;
+    --text:#F2EFE9; --dim:#8B909B; --onair:#FF4438; --glass:#7FD1C8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:'Heebo',system-ui,sans-serif;overflow:hidden}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+
+  .screen{position:fixed;inset:0;display:none;flex-direction:column}
+  .screen.active{display:flex}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);flex-shrink:0;gap:8px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--onair);box-shadow:0 0 12px var(--onair)}
+  .brand h1{font-size:16px;font-weight:900;letter-spacing:.5px}
+  .brand span{color:var(--dim);font-weight:300;font-size:13px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{padding:9px 14px;border-radius:10px;font-size:13px;font-weight:500;background:var(--panel2);border:1px solid var(--line);color:var(--text);transition:background .15s}
+  .btn:active{background:var(--line)}
+  .btn.primary{background:var(--onair);border-color:var(--onair);font-weight:700}
+  .btn.ghost{background:none;border-color:var(--line);color:var(--dim)}
+  .btn.teal{background:none;border-color:var(--glass);color:var(--glass)}
+  .scriptCard{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;text-align:right;width:100%;transition:border-color .15s;
+  }
+  .scriptCard:active{border-color:var(--glass)}
+  .scriptCard.sel{border-color:var(--onair)}
+  .scInfo{flex:1;min-width:0}
+  .scName{font-size:15px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+  .scName .nowBadge{font-size:10px;font-weight:700;color:var(--onair);border:1px solid var(--onair);border-radius:6px;padding:1px 7px}
+  .scPreview{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scMeta{font-size:11px;color:var(--dim);margin-top:4px}
+  .scMore{flex-shrink:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 13px;font-size:16px;color:var(--dim)}
+  .emptyLib{color:var(--dim);text-align:center;padding:40px 16px;font-size:14px;line-height:1.8}
+
+  main{flex:1;display:flex;flex-direction:column;padding:16px 18px;gap:14px;overflow-y:auto}
+
+
+  textarea{flex:1;min-height:180px;width:100%;resize:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;color:var(--text);font-family:inherit;font-size:17px;line-height:1.8;padding:16px;outline:none}
+  textarea:focus{border-color:var(--glass)}
+  textarea::placeholder{color:var(--dim)}
+  input[type=text]{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;padding:11px 13px;outline:none;direction:ltr;text-align:left}
+  input[type=text]:focus{border-color:var(--glass)}
+
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ctrl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .ctrl label{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:8px}
+  .ctrl label b{color:var(--text);font-weight:500}
+  input[type=range]{width:100%;accent-color:var(--onair)}
+
+  .toggles{display:flex;gap:10px;flex-wrap:wrap}
+  .toggle{flex:1;min-width:120px;display:flex;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px}
+  .switch{position:relative;width:40px;height:22px;flex-shrink:0}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:var(--line);border-radius:22px;transition:.2s}
+  .slider:before{content:"";position:absolute;height:16px;width:16px;right:3px;top:3px;background:var(--dim);border-radius:50%;transition:.2s}
+  .switch input:checked + .slider{background:var(--glass)}
+  .switch input:checked + .slider:before{transform:translateX(-18px);background:#0A0B0D}
+
+  /* prompter */
+  #prompter{background:#000}
+  #scrollWrap{flex:1;overflow:hidden;position:relative}
+  #scrollContent{position:absolute;top:0;right:0;left:0;padding:45vh 0 60vh 0;will-change:transform}
+  #promptText{margin:0 auto;white-space:pre-wrap;word-break:break-word;font-weight:700;text-align:center;line-height:1.7;direction:rtl}
+  .mirrorH #scrollWrap{transform:scaleX(-1)}
+  .mirrorV #scrollWrap{transform:scaleY(-1)}
+  .mirrorH.mirrorV #scrollWrap{transform:scale(-1,-1)}
+  #guideLine{position:absolute;top:42vh;right:0;left:0;height:0;border-top:2px solid rgba(255,68,56,.55);pointer-events:none;z-index:5}
+  #guideLine:before{content:"◀";position:absolute;right:8px;top:-13px;color:var(--onair);font-size:14px;opacity:.8}
+  #promptBar{position:fixed;bottom:0;right:0;left:0;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:10px;background:linear-gradient(to top,rgba(0,0,0,.92),transparent);z-index:10;transition:opacity .3s}
+  #promptBar.hidden{opacity:0;pointer-events:none}
+  .pbtn{background:rgba(28,31,37,.85);border:1px solid var(--line);border-radius:12px;padding:12px 18px;font-size:15px;color:var(--text);backdrop-filter:blur(6px)}
+  .pbtn.play{background:var(--onair);border-color:var(--onair);font-weight:900;min-width:90px}
+  #speedShow{font-size:13px;color:var(--dim);min-width:60px;text-align:center}
+
+  /* remote test + mapping */
+  .listen{display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--panel);border:1px dashed var(--glass);border-radius:16px;padding:22px 16px;text-align:center}
+  .pulse{width:14px;height:14px;border-radius:50%;background:var(--glass);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(127,209,200,.5)}70%{box-shadow:0 0 0 18px rgba(127,209,200,0)}100%{box-shadow:0 0 0 0 rgba(127,209,200,0)}}
+  .listen h2{font-size:16px;font-weight:700}
+  .listen p{font-size:13px;color:var(--dim);line-height:1.6;max-width:420px}
+  #lastKey{background:var(--panel2);border:1px solid var(--glass);border-radius:16px;padding:16px;text-align:center;display:none}
+  #lastKey.show{display:block}
+  #lastKeyName{font-size:30px;font-weight:900;color:var(--glass);direction:ltr}
+  #lastKeyCode{font-size:13px;color:var(--dim);margin-top:4px;direction:ltr}
+  #keyLog{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;overflow-y:auto;font-size:13px;min-height:100px;max-height:180px}
+  .logRow{display:flex;justify-content:space-between;padding:7px 6px;border-bottom:1px solid var(--line);direction:ltr}
+  .logRow b{color:var(--glass);font-weight:700}
+  .logRow span{color:var(--dim)}
+  .logEmpty{color:var(--dim);text-align:center;padding:24px 10px;font-size:13px}
+
+  .mapList{display:flex;flex-direction:column;gap:8px}
+  .mapRow{display:flex;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 14px;gap:10px}
+  .mapRow .mname{font-size:14px;font-weight:500}
+  .mapRow .mkeys{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .kbd{background:var(--panel2);border:1px solid var(--glass);color:var(--glass);border-radius:7px;padding:3px 9px;font-size:12px;direction:ltr;display:inline-flex;align-items:center;gap:6px}
+  .kbd i{font-style:normal;opacity:.6;cursor:pointer}
+  .mapRow.arming{border-color:var(--onair)}
+  .mapRow.arming .mname{color:var(--onair)}
+  .mbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--dim)}
+  .mbtn.arm{border-color:var(--onair);color:var(--onair);font-weight:700}
+
+  .hint{background:var(--panel);border-right:3px solid var(--glass);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--dim);line-height:1.7}
+  .hint b{color:var(--text)}
+  .sectionTitle{font-size:13px;font-weight:700;color:var(--dim);letter-spacing:.5px;margin-top:4px}
+  .chooseBtn{
+    width:100%;background:var(--onair);border:none;border-radius:14px;
+    color:#fff;font-weight:900;font-size:16px;padding:15px;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .chooseBtn:active{opacity:.85}
+  .chooseBtn.already{background:var(--panel2);color:var(--glass);border:1px solid var(--glass)}
+  #viewName{
+    font-size:16px;font-weight:900;width:45vw;min-width:120px;
+    background:none;border:1px solid transparent;border-radius:8px;
+    color:var(--text);font-family:inherit;padding:6px 8px;outline:none;
+    direction:rtl;text-align:right;
+  }
+  #viewName:focus{border-color:var(--glass);background:var(--panel)}
+  .delBtn{border-color:var(--line);color:var(--dim)}
+  .delBtn.confirm{border-color:var(--onair);color:var(--onair);font-weight:700}
+
+  /* sync indicator */
+  #syncBadge{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:11px;color:var(--dim);font-weight:500;
+    padding:4px 9px;border-radius:20px;
+    background:var(--panel2);border:1px solid var(--line);
+    transition:color .2s,border-color .2s,opacity .3s;
+    user-select:none;
+  }
+  #syncBadge .sdot{width:6px;height:6px;border-radius:50%;background:var(--dim);transition:background .2s}
+  #syncBadge.ok .sdot{background:var(--glass)}
+  #syncBadge.ok{color:var(--glass);border-color:rgba(127,209,200,.35)}
+  #syncBadge.busy .sdot{background:#e0b84a;animation:spulse 1s infinite}
+  #syncBadge.busy{color:#e0b84a;border-color:rgba(224,184,74,.35)}
+  #syncBadge.err .sdot{background:var(--onair)}
+  #syncBadge.err{color:var(--onair);border-color:rgba(255,68,56,.35)}
+  @keyframes spulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</head>
+<body>
+
+<!-- ========== EDITOR ========== -->
+<div class="screen active" id="editorScreen">
+  <header>
+    <div class="brand"><div class="dot"></div><h1>ELEV8 <span>· פרומפטר</span></h1></div>
+    <div class="toolbar">
+      <span id="syncBadge" title="מצב סנכרון"><span class="sdot"></span><span id="syncText">מתחיל...</span></span>
+      <button class="btn ghost" onclick="showScreen('scriptsScreen')">📄 סקריפטים</button>
+      <button class="btn ghost" onclick="showScreen('remotePanel')">🎛 שלט</button>
+      <button class="btn primary" onclick="startPrompt()">▶ התחל</button>
+    </div>
+  </header>
+  <main>
+    <div class="sectionTitle" id="curScriptName"></div>
+    <textarea id="scriptInput" placeholder="הדבק כאן את הסקריפט שלך...&#10;&#10;כל מה שתכתוב נשמר אוטומטית במכשיר."></textarea>
+    <div class="controls">
+      <div class="ctrl"><label>מהירות גלילה <b id="speedVal">40</b></label><input type="range" id="speedRange" min="10" max="150" value="40"></div>
+      <div class="ctrl"><label>גודל פונט <b id="fontVal">44</b></label><input type="range" id="fontRange" min="24" max="90" value="44"></div>
+      <div class="ctrl"><label>רוחב טור <b id="widthVal">80%</b></label><input type="range" id="widthRange" min="40" max="100" value="80"></div>
+      <div class="ctrl"><label>שוליים עליונים <b id="startVal">45%</b></label><input type="range" id="startRange" min="10" max="60" value="45"></div>
+    </div>
+    <div class="toggles">
+      <div class="toggle">מצב מראה ↔<label class="switch"><input type="checkbox" id="mirrorH" checked><span class="slider"></span></label></div>
+      <div class="toggle">מצב מראה ↕<label class="switch"><input type="checkbox" id="mirrorV"><span class="slider"></span></label></div>
+      <div class="toggle">קו קריאה<label class="switch"><input type="checkbox" id="guideToggle" checked><span class="slider"></span></label></div>
+    </div>
+  </main>
+</div>
+
+<!-- ========== SCRIPTS LIBRARY ========== -->
+<div class="screen" id="scriptsScreen">
+  <header>
+    <div class="brand"><div class="dot"></div><h1>הסקריפטים שלי</h1></div>
+    <div class="toolbar">
+      <button class="btn primary" onclick="newScript()">＋ חדש</button>
+      <button class="btn" onclick="showScreen('editorScreen')">→ חזרה</button>
+    </div>
+  </header>
+  <main>
+    <div id="scriptsList" style="display:flex;flex-direction:column;gap:10px"></div>
+  </main>
+</div>
+
+<!-- ========== SCRIPT VIEW ========== -->
+<div class="screen" id="scriptView">
+  <header>
+    <div class="brand"><div class="dot"></div><input id="viewName" placeholder="שם הסקריפט"></div>
+    <div class="toolbar">
+      <button class="btn ghost delBtn" id="delBtn" onclick="deleteFromView()">🗑</button>
+      <button class="btn" onclick="showScreen('scriptsScreen')">→ חזרה</button>
+    </div>
+  </header>
+  <main>
+    <textarea id="viewTextarea" placeholder="הסקריפט ריק — אפשר לכתוב כאן"></textarea>
+    <button class="chooseBtn" id="chooseBtn" onclick="chooseForPrompter()"></button>
+  </main>
+</div>
+
+<!-- ========== PROMPTER ========== -->
+<div class="screen" id="prompter">
+  <div id="guideLine"></div>
+  <div id="scrollWrap"><div id="scrollContent"><div id="promptText"></div></div></div>
+  <div id="promptBar">
+    <button class="pbtn" onclick="exitPrompt()">✕</button>
+    <button class="pbtn" onclick="changeSpeed(-5)">−</button>
+    <button class="pbtn play" id="playBtn" onclick="togglePlay()">▶</button>
+    <button class="pbtn" onclick="changeSpeed(5)">+</button>
+    <div id="speedShow">40</div>
+    <button class="pbtn" onclick="restartScroll()">⟲</button>
+  </div>
+</div>
+
+<!-- ========== REMOTE ========== -->
+<div class="screen" id="remotePanel">
+  <header>
+    <div class="brand"><div class="dot" style="background:var(--glass);box-shadow:0 0 12px var(--glass)"></div><h1>שלט</h1></div>
+    <button class="btn" onclick="showScreen('editorScreen')">→ חזרה</button>
+  </header>
+  <main>
+    <div class="sectionTitle">הגדרת כפתורים</div>
+    <div class="hint"><b>איך מגדירים:</b> לחץ "הקצה" ליד פעולה, ואז לחץ על הכפתור בשלט. אפשר להקצות כמה כפתורים לאותה פעולה. לחיצה על ✕ ליד מקש — מוחקת אותו.</div>
+    <div class="mapList" id="mapList"></div>
+    <button class="btn ghost" onclick="resetMappings()" style="align-self:flex-start">↺ אפס לברירת מחדל</button>
+
+    <div class="sectionTitle">בדיקת קליטה</div>
+    <div class="listen">
+      <div class="pulse"></div>
+      <h2>מאזין ללחיצות...</h2>
+      <p>לחץ על כל כפתור בשלט — אם הוא נקלט, הוא יופיע כאן.</p>
+    </div>
+    <div id="lastKey"><div id="lastKeyName"></div><div id="lastKeyCode"></div></div>
+    <div id="keyLog"><div class="logEmpty">עדיין לא נקלטו לחיצות</div></div>
+  </main>
+</div>
+
+<script>
+/* ---------- state ---------- */
+const S = {
+  speed:40, font:44, width:80, startPad:45,
+  mirrorH:true, mirrorV:false, guide:true,
+  playing:false, offset:0, lastT:0, raf:null, wakeLock:null,
+};
+
+const ACTIONS = [
+  {id:'play',    name:'התחל / עצור'},
+  {id:'faster',  name:'מהירות +'},
+  {id:'slower',  name:'מהירות −'},
+  {id:'fontUp',  name:'פונט +'},
+  {id:'fontDown',name:'פונט −'},
+  {id:'jumpBack',name:'קפיצה אחורה'},
+  {id:'jumpFwd', name:'קפיצה קדימה'},
+  {id:'restart', name:'חזרה להתחלה'},
+  {id:'exit',    name:'יציאה'},
+];
+const DEFAULT_MAP = {
+  play:[' ','Enter','MediaPlayPause'],
+  faster:['ArrowUp','AudioVolumeUp','PageUp'],
+  slower:['ArrowDown','AudioVolumeDown','PageDown'],
+  fontUp:['ArrowLeft'],
+  fontDown:['ArrowRight'],
+  jumpBack:[],
+  jumpFwd:[],
+  restart:['Home'],
+  exit:['Escape'],
+};
+
+/* ---------- persistence ---------- */
+const store = JSON.parse(localStorage.getItem('elev8prompter') || '{}');
+Object.assign(S, store.settings || {});
+let scripts = store.scripts && store.scripts.length ? store.scripts : [{name:'סקריפט 1', text: store.script || ''}];
+let curScript = Math.min(store.curScript || 0, scripts.length-1);
+let keymap = store.keymap || JSON.parse(JSON.stringify(DEFAULT_MAP));
+for (const k in DEFAULT_MAP) if (keymap[k]===undefined) keymap[k]=DEFAULT_MAP[k].slice();
+
+/* per-script id + timestamp, group timestamps for settings/keymap, tombstones */
+let curScriptId = store.curScriptId || null;
+let settingsUpdatedAt = store.settingsUpdatedAt || 0;
+let keymapUpdatedAt = store.keymapUpdatedAt || 0;
+let tombstones = Array.isArray(store.tombstones) ? store.tombstones : [];
+
+function uid(){ return 's_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+scripts.forEach(s=>{
+  if (!s.id) s.id = uid();
+  if (!s.updatedAt) s.updatedAt = Date.now();
+});
+if (!curScriptId && scripts[curScript]) curScriptId = scripts[curScript].id;
+
+function currentSettings(){
+  return {speed:S.speed,font:S.font,width:S.width,startPad:S.startPad,mirrorH:S.mirrorH,mirrorV:S.mirrorV,guide:S.guide};
+}
+
+function persist(opts){
+  opts = opts || {};
+  if (opts.touchSettings) settingsUpdatedAt = Date.now();
+  if (opts.touchKeymap) keymapUpdatedAt = Date.now();
+  if (opts.touchScript){
+    const s = scripts.find(x=>x.id===opts.touchScript);
+    if (s) s.updatedAt = Date.now();
+  }
+  localStorage.setItem('elev8prompter', JSON.stringify({
+    scripts, curScript, curScriptId, keymap,
+    settings: currentSettings(),
+    settingsUpdatedAt, keymapUpdatedAt, tombstones,
+  }));
+  if (!opts.skipCloud) scheduleCloudPush();
+}
+
+/* ---------- scripts UI ---------- */
+const scriptInput = document.getElementById('scriptInput');
+const scriptsList = document.getElementById('scriptsList');
+const curScriptName = document.getElementById('curScriptName');
+
+function renderScripts(){
+  curScriptName.textContent = '📄 ' + scripts[curScript].name;
+  scriptsList.innerHTML = '';
+  if (!scripts.length){
+    scriptsList.innerHTML = '<div class="emptyLib">אין עדיין סקריפטים.<br>לחץ "＋ חדש" כדי להתחיל.</div>';
+    return;
+  }
+  scripts.forEach((s,i)=>{
+    const words = s.text.trim() ? s.text.trim().split(/\s+/).length : 0;
+    const card = document.createElement('div');
+    card.className = 'scriptCard' + (i===curScript?' sel':'');
+    card.innerHTML = `
+      <div class="scInfo">
+        <div class="scName">${escapeHtml(s.name)}${i===curScript?'<span class="nowBadge">פעיל</span>':''}</div>
+        <div class="scPreview">${escapeHtml(s.text.trim().slice(0,80)) || 'סקריפט ריק'}</div>
+        <div class="scMeta">${words} מילים · ~${Math.max(1,Math.round(words/130))} דק' דיבור</div>
+      </div>
+      <div class="scMore">←</div>`;
+    card.addEventListener('click', ()=>openView(i));
+    scriptsList.appendChild(card);
+  });
+}
+function escapeHtml(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function newScript(){
+  const ns = {id: uid(), name: 'סקריפט ' + (scripts.length+1), text:'', updatedAt: Date.now()};
+  scripts.push(ns);
+  persist({touchScript: ns.id});
+  openView(scripts.length-1);
+  const nameEl = document.getElementById('viewName');
+  nameEl.focus(); nameEl.select();
+}
+function selectScript(i){
+  const prev = scripts[curScript];
+  const changed = prev.text !== scriptInput.value;
+  prev.text = scriptInput.value;
+  curScript = i;
+  curScriptId = scripts[i].id;
+  scriptInput.value = scripts[i].text;
+  renderScripts(); persist(changed ? {touchScript: prev.id} : {});
+}
+let delArmed = null;
+function deleteFromView(){
+  const b = document.getElementById('delBtn');
+  if (delArmed !== viewIdx){
+    delArmed = viewIdx;
+    b.classList.add('confirm'); b.textContent = 'לחץ שוב למחיקה';
+    setTimeout(()=>{ if(delArmed===viewIdx){ delArmed=null; b.classList.remove('confirm'); b.textContent='🗑'; } }, 3000);
+    return;
+  }
+  delArmed = null;
+  b.classList.remove('confirm'); b.textContent = '🗑';
+  const removedId = scripts[viewIdx] && scripts[viewIdx].id;
+  if (scripts.length===1){
+    if (removedId) tombstones.push({id: removedId, deletedAt: Date.now()});
+    const ns = {id: uid(), name:'סקריפט 1', text:'', updatedAt: Date.now()};
+    scripts[0] = ns; curScript = 0; curScriptId = ns.id;
+  } else {
+    if (removedId) tombstones.push({id: removedId, deletedAt: Date.now()});
+    scripts.splice(viewIdx,1);
+    if (curScript>viewIdx) curScript--;
+    else if (curScript===viewIdx) curScript=Math.min(curScript,scripts.length-1);
+    curScriptId = scripts[curScript] && scripts[curScript].id || null;
+  }
+  scriptInput.value = scripts[curScript].text;
+  renderScripts(); persist();
+  showScreen('scriptsScreen');
+}
+
+/* ---------- script view ---------- */
+let viewIdx = 0;
+const viewTextarea = document.getElementById('viewTextarea');
+const viewNameEl = document.getElementById('viewName');
+function openView(i){
+  scripts[curScript].text = scriptInput.value;
+  viewIdx = i;
+  viewNameEl.value = scripts[i].name;
+  viewTextarea.value = scripts[i].text;
+  delArmed = null;
+  const db = document.getElementById('delBtn');
+  db.classList.remove('confirm'); db.textContent = '🗑';
+  updateChooseBtn();
+  showScreen('scriptView');
+}
+viewNameEl.addEventListener('input', ()=>{
+  scripts[viewIdx].name = viewNameEl.value.trim() || ('סקריפט ' + (viewIdx+1));
+  renderScripts(); persist({touchScript: scripts[viewIdx].id});
+});
+function updateChooseBtn(){
+  const b = document.getElementById('chooseBtn');
+  if (viewIdx===curScript){ b.textContent='✓ זה הסקריפט הפעיל'; b.classList.add('already'); }
+  else { b.textContent='▶ בחר לטלפרומפטר'; b.classList.remove('already'); }
+}
+viewTextarea.addEventListener('input', ()=>{
+  scripts[viewIdx].text = viewTextarea.value;
+  if (viewIdx===curScript) scriptInput.value = viewTextarea.value;
+  persist({touchScript: scripts[viewIdx].id});
+});
+function chooseForPrompter(){
+  const changed = scripts[viewIdx].text !== viewTextarea.value;
+  scripts[viewIdx].text = viewTextarea.value;
+  curScript = viewIdx;
+  curScriptId = scripts[curScript].id;
+  scriptInput.value = scripts[curScript].text;
+  renderScripts(); persist(changed ? {touchScript: scripts[viewIdx].id} : {});
+  showScreen('editorScreen');
+}
+scriptInput.value = scripts[curScript].text;
+scriptInput.addEventListener('input', ()=>{ scripts[curScript].text = scriptInput.value; persist({touchScript: scripts[curScript].id}); });
+renderScripts();
+
+/* ---------- controls binding ---------- */
+function bindRange(id,key,labelId,suffix=''){
+  const el=document.getElementById(id), lb=document.getElementById(labelId);
+  el.value=S[key]; lb.textContent=S[key]+suffix;
+  el.addEventListener('input',()=>{S[key]=+el.value; lb.textContent=el.value+suffix; persist({touchSettings:true});});
+}
+bindRange('speedRange','speed','speedVal');
+bindRange('fontRange','font','fontVal');
+bindRange('widthRange','width','widthVal','%');
+bindRange('startRange','startPad','startVal','%');
+function bindToggle(id,key){
+  const el=document.getElementById(id); el.checked=S[key];
+  el.addEventListener('change',()=>{S[key]=el.checked; persist({touchSettings:true});});
+}
+bindToggle('mirrorH','mirrorH'); bindToggle('mirrorV','mirrorV'); bindToggle('guideToggle','guide');
+
+/* ---------- screens ---------- */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id==='remotePanel') renderMapList();
+}
+
+/* ---------- key mapping ---------- */
+let armingAction = null;
+const mapList = document.getElementById('mapList');
+function keyLabel(k){ return k===' ' ? 'Space' : k; }
+function renderMapList(){
+  mapList.innerHTML='';
+  ACTIONS.forEach(a=>{
+    const row=document.createElement('div');
+    row.className='mapRow'+(armingAction===a.id?' arming':'');
+    const keys=(keymap[a.id]||[]).map(k=>
+      `<span class="kbd">${keyLabel(k)}<i data-act="${a.id}" data-key="${encodeURIComponent(k)}">✕</i></span>`).join('');
+    row.innerHTML=`<div class="mname">${a.name}${armingAction===a.id?' — לחץ על כפתור בשלט...':''}</div>
+      <div class="mkeys">${keys}
+      <button class="mbtn ${armingAction===a.id?'arm':''}" data-arm="${a.id}">${armingAction===a.id?'ביטול':'הקצה'}</button></div>`;
+    mapList.appendChild(row);
+  });
+  mapList.querySelectorAll('[data-arm]').forEach(b=>{
+    b.onclick=()=>{ armingAction = armingAction===b.dataset.arm ? null : b.dataset.arm; renderMapList(); };
+  });
+  mapList.querySelectorAll('.kbd i').forEach(x=>{
+    x.onclick=()=>{
+      const act=x.dataset.act, key=decodeURIComponent(x.dataset.key);
+      keymap[act]=(keymap[act]||[]).filter(k=>k!==key);
+      persist({touchKeymap:true}); renderMapList();
+    };
+  });
+}
+function resetMappings(){
+  keymap = JSON.parse(JSON.stringify(DEFAULT_MAP));
+  armingAction=null; persist({touchKeymap:true}); renderMapList();
+}
+function assignKey(key){
+  // remove key from all actions, then add to armed one
+  for (const a of ACTIONS) keymap[a.id]=(keymap[a.id]||[]).filter(k=>k!==key);
+  keymap[armingAction]=keymap[armingAction]||[];
+  keymap[armingAction].push(key);
+  armingAction=null; persist({touchKeymap:true}); renderMapList();
+}
+function actionForKey(key){
+  for (const a of ACTIONS) if ((keymap[a.id]||[]).includes(key)) return a.id;
+  return null;
+}
+
+/* ---------- prompter ---------- */
+const prompter=document.getElementById('prompter');
+const scrollContent=document.getElementById('scrollContent');
+const promptText=document.getElementById('promptText');
+const playBtn=document.getElementById('playBtn');
+const speedShow=document.getElementById('speedShow');
+const promptBar=document.getElementById('promptBar');
+const guideLine=document.getElementById('guideLine');
+let barTimer=null;
+
+function startPrompt(){
+  const txt=scriptInput.value.trim();
+  promptText.textContent = txt || 'אין טקסט — חזור למסך הראשי והדבק סקריפט';
+  promptText.style.fontSize=S.font+'px';
+  promptText.style.maxWidth=S.width+'%';
+  scrollContent.style.paddingTop=S.startPad+'vh';
+  prompter.classList.toggle('mirrorH',S.mirrorH);
+  prompter.classList.toggle('mirrorV',S.mirrorV);
+  guideLine.style.display=S.guide?'block':'none';
+  S.offset=0; S.playing=false;
+  scrollContent.style.transform='translateY(0)';
+  updatePlayUI(); showScreen('prompter'); showBar(); requestWake();
+  try{document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();}catch(e){}
+}
+function exitPrompt(){
+  stopLoop(); S.playing=false; releaseWake();
+  try{document.exitFullscreen && document.exitFullscreen();}catch(e){}
+  showScreen('editorScreen');
+}
+function togglePlay(){
+  S.playing=!S.playing; updatePlayUI();
+  if(S.playing){S.lastT=performance.now(); loop(); showBarBriefly();} else stopLoop();
+}
+function updatePlayUI(){ playBtn.textContent=S.playing?'❚❚':'▶'; speedShow.textContent=S.speed; }
+function loop(){
+  S.raf=requestAnimationFrame(now=>{
+    const dt=(now-S.lastT)/1000; S.lastT=now;
+    S.offset+=S.speed*dt;
+    const max=scrollContent.scrollHeight;
+    if(S.offset>max){S.offset=max;S.playing=false;updatePlayUI();showBar();return;}
+    scrollContent.style.transform=`translateY(${-S.offset}px)`;
+    if(S.playing) loop();
+  });
+}
+function stopLoop(){ if(S.raf)cancelAnimationFrame(S.raf); S.raf=null; }
+function changeSpeed(d){
+  S.speed=Math.min(200,Math.max(5,S.speed+d));
+  speedShow.textContent=S.speed;
+  document.getElementById('speedVal').textContent=S.speed;
+  document.getElementById('speedRange').value=S.speed;
+  persist({touchSettings:true}); showBarBriefly();
+}
+function restartScroll(){ S.offset=0; scrollContent.style.transform='translateY(0)'; }
+function changeFont(d){
+  S.font=Math.min(120,Math.max(20,S.font+d));
+  promptText.style.fontSize=S.font+'px';
+  document.getElementById('fontVal').textContent=S.font;
+  document.getElementById('fontRange').value=S.font;
+  persist({touchSettings:true}); showBarBriefly();
+}
+function jump(px){
+  S.offset=Math.max(0,S.offset+px);
+  scrollContent.style.transform=`translateY(${-S.offset}px)`;
+}
+function showBar(){ promptBar.classList.remove('hidden'); clearTimeout(barTimer); }
+function showBarBriefly(){
+  showBar();
+  barTimer=setTimeout(()=>{ if(S.playing) promptBar.classList.add('hidden'); },2500);
+}
+prompter.addEventListener('click',e=>{
+  if(e.target.closest('.pbtn'))return;
+  if(promptBar.classList.contains('hidden')) showBarBriefly();
+  else togglePlay();
+});
+
+/* ---------- wake lock ---------- */
+async function requestWake(){ try{S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){} }
+function releaseWake(){ try{S.wakeLock&&S.wakeLock.release();}catch(e){} S.wakeLock=null; }
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&prompter.classList.contains('active')) requestWake();
+});
+
+/* ---------- key handling ---------- */
+const keyLog=document.getElementById('keyLog');
+const lastKeyBox=document.getElementById('lastKey');
+let logCount=0;
+function logKey(e){
+  lastKeyBox.classList.add('show');
+  document.getElementById('lastKeyName').textContent=keyLabel(e.key);
+  document.getElementById('lastKeyCode').textContent=`code: ${e.code||'—'} · keyCode: ${e.keyCode}`;
+  if(logCount===0)keyLog.innerHTML='';
+  logCount++;
+  const row=document.createElement('div');
+  row.className='logRow';
+  row.innerHTML=`<b>${keyLabel(e.key)}</b><span>${e.code||''} · ${e.keyCode}</span>`;
+  keyLog.prepend(row);
+  while(keyLog.children.length>30)keyLog.removeChild(keyLog.lastChild);
+}
+
+/* ---------- cloud sync ---------- */
+const SYNC_URL = '/api/sync';
+const badge = document.getElementById('syncBadge');
+const badgeText = document.getElementById('syncText');
+function setSync(state, text){
+  if (!badge) return;
+  badge.classList.remove('ok','busy','err');
+  if (state) badge.classList.add(state);
+  badgeText.textContent = text;
+}
+setSync('busy','טוען...');
+
+let pushTimer = null;
+let pushInflight = false;
+let pushPending = false;
+
+function localDoc(){
+  return {
+    updatedAt: Date.now(),
+    scripts: scripts.map(s=>({id:s.id, name:s.name, text:s.text, updatedAt:s.updatedAt||0})),
+    settings: {...currentSettings(), updatedAt: settingsUpdatedAt},
+    keymap:   {map: JSON.parse(JSON.stringify(keymap)), updatedAt: keymapUpdatedAt},
+    tombstones: tombstones.slice(),
+  };
+}
+
+async function cloudPush(){
+  if (pushInflight){ pushPending = true; return; }
+  pushInflight = true;
+  setSync('busy','מסנכרן...');
+  try {
+    const res = await fetch(SYNC_URL, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(localDoc()),
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('http '+res.status);
+    const merged = await res.json();
+    applyRemote(merged, {silent:true});
+    setSync('ok','מסונכרן');
+  } catch(e){
+    setSync('err','אין חיבור');
+  } finally {
+    pushInflight = false;
+    if (pushPending){ pushPending = false; setTimeout(cloudPush, 200); }
+  }
+}
+function scheduleCloudPush(){
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(cloudPush, 1000);
+}
+
+async function cloudPull(){
+  try {
+    const res = await fetch(SYNC_URL, {cache:'no-store'});
+    if (!res.ok) throw new Error('http '+res.status);
+    const remote = await res.json();
+    const applied = applyRemote(remote);
+    setSync('ok', applied ? 'מסונכרן' : 'מסונכרן');
+  } catch(e){
+    setSync('err','אין חיבור');
+  }
+}
+
+function applyRemote(remote, opts){
+  opts = opts || {};
+  let changed = false;
+
+  const byId = new Map();
+  for (const s of scripts) byId.set(s.id, s);
+  const tombIds = new Set(tombstones.map(t=>t.id));
+  const tombMap = new Map(tombstones.map(t=>[t.id,t]));
+  for (const t of (remote.tombstones||[])){
+    const prev = tombMap.get(t.id);
+    if (!prev || (t.deletedAt||0) > (prev.deletedAt||0)){ tombMap.set(t.id, t); changed = true; }
+  }
+
+  for (const r of (remote.scripts||[])){
+    const local = byId.get(r.id);
+    const tomb = tombMap.get(r.id);
+    if (tomb && (tomb.deletedAt||0) > (r.updatedAt||0)) continue;
+    if (!local){
+      byId.set(r.id, {id:r.id, name:r.name, text:r.text, updatedAt:r.updatedAt||0});
+      changed = true;
+    } else if ((r.updatedAt||0) > (local.updatedAt||0)){
+      local.name = r.name; local.text = r.text; local.updatedAt = r.updatedAt||0;
+      changed = true;
+    }
+  }
+  for (const [id,t] of tombMap){
+    if (byId.has(id) && (t.deletedAt||0) > (byId.get(id).updatedAt||0)){
+      byId.delete(id); changed = true;
+    }
+  }
+
+  const newScripts = [...byId.values()];
+  if (newScripts.length === 0){
+    const ns = {id: uid(), name:'סקריפט 1', text:'', updatedAt: Date.now()};
+    newScripts.push(ns);
+    changed = true;
+  }
+  scripts.length = 0; scripts.push(...newScripts);
+  tombstones = [...tombMap.values()];
+
+  let idx = scripts.findIndex(s=>s.id===curScriptId);
+  if (idx < 0) idx = 0;
+  curScript = idx;
+  curScriptId = scripts[curScript].id;
+
+  const rs = remote.settings;
+  if (rs && (rs.updatedAt||0) > settingsUpdatedAt){
+    ['speed','font','width','startPad','mirrorH','mirrorV','guide'].forEach(k=>{
+      if (rs[k] !== undefined) S[k] = rs[k];
+    });
+    settingsUpdatedAt = rs.updatedAt||0;
+    reflectSettingsInUI();
+    changed = true;
+  }
+  const rk = remote.keymap;
+  if (rk && (rk.updatedAt||0) > keymapUpdatedAt){
+    keymap = rk.map || keymap;
+    keymapUpdatedAt = rk.updatedAt||0;
+    if (document.getElementById('remotePanel').classList.contains('active')) renderMapList();
+    changed = true;
+  }
+
+  if (changed){
+    scriptInput.value = scripts[curScript].text;
+    renderScripts();
+    if (document.getElementById('scriptView').classList.contains('active')){
+      const vi = scripts.findIndex(s=>s.id===(scripts[viewIdx]&&scripts[viewIdx].id));
+      if (vi >= 0){ viewIdx = vi; viewTextarea.value = scripts[vi].text; viewNameEl.value = scripts[vi].name; }
+    }
+    persist({skipCloud:true});
+  }
+  return changed;
+}
+
+function reflectSettingsInUI(){
+  const set = (id,val,suf)=>{ const el=document.getElementById(id); if(el) el.value = val; const lb=document.getElementById(id.replace('Range','Val')); if(lb) lb.textContent = val + (suf||''); };
+  set('speedRange',S.speed);
+  set('fontRange',S.font);
+  set('widthRange',S.width,'%');
+  set('startRange',S.startPad,'%');
+  const mh=document.getElementById('mirrorH'); if(mh) mh.checked=S.mirrorH;
+  const mv=document.getElementById('mirrorV'); if(mv) mv.checked=S.mirrorV;
+  const gt=document.getElementById('guideToggle'); if(gt) gt.checked=S.guide;
+}
+
+cloudPull();
+setInterval(cloudPull, 10000);
+window.addEventListener('online',  ()=>{ setSync('busy','מסנכרן...'); cloudPull(); });
+window.addEventListener('offline', ()=>setSync('err','אין חיבור'));
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible') cloudPull(); });
+
+/* ---------- service worker ---------- */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
+}
+
+document.addEventListener('keydown',e=>{
+  const inRemote=document.getElementById('remotePanel').classList.contains('active');
+  const inPrompter=prompter.classList.contains('active');
+  const typing=document.activeElement===scriptInput||document.activeElement===viewTextarea||document.activeElement===viewNameEl;
+
+  if(inRemote){
+    e.preventDefault();
+    logKey(e);
+    if(armingAction) assignKey(e.key);
+    return;
+  }
+  if(typing)return;
+
+  if(inPrompter){
+    const act=actionForKey(e.key);
+    if(!act){ if(e.key==='Escape')exitPrompt(); return; }
+    e.preventDefault();
+    if(act==='play')togglePlay();
+    else if(act==='faster')changeSpeed(5);
+    else if(act==='slower')changeSpeed(-5);
+    else if(act==='fontUp')changeFont(4);
+    else if(act==='fontDown')changeFont(-4);
+    else if(act==='jumpBack')jump(-120);
+    else if(act==='jumpFwd')jump(120);
+    else if(act==='restart')restartScroll();
+    else if(act==='exit')exitPrompt();
+  } else {
+    if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))startPrompt();
+  }
+});
+</script>
+</body>
+</html>
