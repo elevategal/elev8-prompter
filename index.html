@@ -526,7 +526,7 @@ function startPrompt(){
   guideLine.style.display=S.guide?'block':'none';
   S.offset=0; S.playing=false;
   scrollContent.style.transform='translateY(0)';
-  updatePlayUI(); showScreen('prompter'); showBar(); requestWake();
+  updatePlayUI(); showScreen('prompter'); showBar(); requestWake(); startWakeKeepAlive();
   try{document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();}catch(e){}
 }
 function exitPrompt(){
@@ -580,12 +580,35 @@ prompter.addEventListener('click',e=>{
   else togglePlay();
 });
 
-/* ---------- wake lock ---------- */
-async function requestWake(){ try{S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){} }
-function releaseWake(){ try{S.wakeLock&&S.wakeLock.release();}catch(e){} S.wakeLock=null; }
+/* ---------- wake lock (screen stays on) ---------- */
+let wakeKeepAlive=null;
+async function requestWake(){
+  if (S.wakeLock || !('wakeLock' in navigator)) return;
+  try{
+    S.wakeLock = await navigator.wakeLock.request('screen');
+    S.wakeLock.addEventListener('release', ()=>{
+      S.wakeLock = null;
+      if (prompter.classList.contains('active') && document.visibilityState==='visible'){
+        setTimeout(requestWake, 300);
+      }
+    });
+  }catch(e){}
+}
+function releaseWake(){
+  try{ S.wakeLock && S.wakeLock.release(); }catch(e){}
+  S.wakeLock=null;
+  if (wakeKeepAlive){ clearInterval(wakeKeepAlive); wakeKeepAlive=null; }
+}
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&prompter.classList.contains('active')) requestWake();
 });
+function startWakeKeepAlive(){
+  if (wakeKeepAlive) return;
+  wakeKeepAlive = setInterval(()=>{
+    if (!prompter.classList.contains('active')) return;
+    if (!S.wakeLock) requestWake();
+  }, 15000);
+}
 
 /* ---------- key handling ---------- */
 const keyLog=document.getElementById('keyLog');
