@@ -457,7 +457,8 @@ bindToggle('mirrorH','mirrorH'); bindToggle('mirrorV','mirrorV'); bindToggle('gu
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  if (id==='remotePanel') renderMapList();
+  if (id==='remotePanel'){ renderMapList(); primeMediaSession(); }
+  if (id==='prompter') primeMediaSession();
 }
 
 /* ---------- key mapping ---------- */
@@ -763,13 +764,13 @@ if ('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
 }
 
-document.addEventListener('keydown',e=>{
+function handleKey(e){
   const inRemote=document.getElementById('remotePanel').classList.contains('active');
   const inPrompter=prompter.classList.contains('active');
   const typing=document.activeElement===scriptInput||document.activeElement===viewTextarea||document.activeElement===viewNameEl;
 
   if(inRemote){
-    e.preventDefault();
+    e.preventDefault && e.preventDefault();
     logKey(e);
     if(armingAction) assignKey(e.key);
     return;
@@ -779,7 +780,7 @@ document.addEventListener('keydown',e=>{
   if(inPrompter){
     const act=actionForKey(e.key);
     if(!act){ if(e.key==='Escape')exitPrompt(); return; }
-    e.preventDefault();
+    e.preventDefault && e.preventDefault();
     if(act==='play')togglePlay();
     else if(act==='faster')changeSpeed(5);
     else if(act==='slower')changeSpeed(-5);
@@ -791,6 +792,45 @@ document.addEventListener('keydown',e=>{
     else if(act==='exit')exitPrompt();
   } else {
     if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))startPrompt();
+  }
+}
+document.addEventListener('keydown', handleKey);
+
+/* ---------- iOS BT remote support (MediaSession + silent-audio volume hack) ---------- */
+/* short silent WAV data URI, looped, near-zero volume — keeps a media session alive on iOS
+   so BT camera/media remotes fire play/pause/next/prev/seek via MediaSession API. */
+const silentAudio = new Audio('data:audio/wav;base64,UklGRnQKAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVAKAAAA' + 'AAAA'.repeat(640));
+silentAudio.loop = true;
+silentAudio.setAttribute('playsinline','');
+silentAudio.setAttribute('webkit-playsinline','');
+silentAudio.preload = 'auto';
+silentAudio.volume = 0.0001;
+let mediaSessionReady = false;
+
+function primeMediaSession(){
+  const p = silentAudio.play();
+  if (p && p.catch) p.catch(()=>{});
+  if (mediaSessionReady || !('mediaSession' in navigator)) return;
+  mediaSessionReady = true;
+  const fire = (key)=>handleKey({key, code:key, keyCode:0, preventDefault(){}});
+  try {
+    navigator.mediaSession.setActionHandler('play',          ()=>fire('MediaPlayPause'));
+    navigator.mediaSession.setActionHandler('pause',         ()=>fire('MediaPlayPause'));
+    navigator.mediaSession.setActionHandler('nexttrack',     ()=>fire('MediaTrackNext'));
+    navigator.mediaSession.setActionHandler('previoustrack', ()=>fire('MediaTrackPrevious'));
+    navigator.mediaSession.setActionHandler('seekforward',   ()=>fire('MediaSeekForward'));
+    navigator.mediaSession.setActionHandler('seekbackward',  ()=>fire('MediaSeekBackward'));
+    navigator.mediaSession.setActionHandler('stop',          ()=>fire('MediaStop'));
+  } catch(e) {}
+  try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
+}
+
+/* keep the silent audio going on visibility changes (iOS pauses it in the background) */
+document.addEventListener('visibilitychange', ()=>{
+  if (document.visibilityState==='visible' && mediaSessionReady) {
+    const inPrompter = prompter.classList.contains('active');
+    const inRemote = document.getElementById('remotePanel').classList.contains('active');
+    if (inPrompter || inRemote) silentAudio.play().catch(()=>{});
   }
 });
 </script>
