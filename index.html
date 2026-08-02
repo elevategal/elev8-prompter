@@ -162,6 +162,7 @@
     <div class="brand"><div class="dot"></div><h1>ELEV8 <span>· פרומפטר</span></h1></div>
     <div class="toolbar">
       <span id="syncBadge" title="מצב סנכרון"><span class="sdot"></span><span id="syncText">מתחיל...</span></span>
+      <a class="btn ghost" href="/remote.html" style="text-decoration:none">📱 שלט־רחוק</a>
       <button class="btn ghost" onclick="showScreen('scriptsScreen')">📄 סקריפטים</button>
       <button class="btn ghost" onclick="showScreen('remotePanel')">🎛 שלט</button>
       <button class="btn primary" onclick="startPrompt()">▶ התחל</button>
@@ -758,6 +759,51 @@ setInterval(cloudPull, 10000);
 window.addEventListener('online',  ()=>{ setSync('busy','מסנכרן...'); cloudPull(); });
 window.addEventListener('offline', ()=>setSync('err','אין חיבור'));
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible') cloudPull(); });
+
+/* ---------- remote-control receiver ---------- */
+let lastCmdTs = 0;
+async function pollCmd(){
+  try {
+    const res = await fetch('/api/cmd', {cache:'no-store'});
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d || !d.cmd || !d.ts || d.ts <= lastCmdTs) return;
+    if (lastCmdTs === 0) { lastCmdTs = d.ts; return; }
+    lastCmdTs = d.ts;
+    execRemoteCmd(d.cmd, d.payload || {});
+  } catch(e){}
+}
+function execRemoteCmd(cmd, payload){
+  const inPrompter = prompter.classList.contains('active');
+  switch(cmd){
+    case 'start': {
+      const sid = payload.scriptId;
+      if (sid){
+        const idx = scripts.findIndex(s=>s.id===sid);
+        if (idx >= 0){ curScript = idx; curScriptId = sid; scriptInput.value = scripts[curScript].text; renderScripts(); persist({skipCloud:true}); }
+      }
+      if (!inPrompter) startPrompt();
+      break;
+    }
+    case 'play':     if (inPrompter) togglePlay(); else startPrompt(); break;
+    case 'faster':   if (inPrompter) changeSpeed(5); break;
+    case 'slower':   if (inPrompter) changeSpeed(-5); break;
+    case 'fontUp':   if (inPrompter) changeFont(4); break;
+    case 'fontDown': if (inPrompter) changeFont(-4); break;
+    case 'jumpBack': if (inPrompter) jump(-120); break;
+    case 'jumpFwd':  if (inPrompter) jump(120); break;
+    case 'restart':  if (inPrompter) restartScroll(); break;
+    case 'exit':     if (inPrompter) exitPrompt(); break;
+  }
+}
+pollCmd();
+setInterval(()=>{
+  const inPrompter = prompter.classList.contains('active');
+  if (document.visibilityState !== 'visible') return;
+  pollCmd();
+  // in prompter, poll again mid-interval for faster response
+  if (inPrompter) setTimeout(pollCmd, 350);
+}, 700);
 
 /* ---------- service worker ---------- */
 if ('serviceWorker' in navigator){

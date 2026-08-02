@@ -6,7 +6,8 @@
 
 ```
 elev8-prompter/
-├── index.html              # האפליקציה כולה — UI, מצב, פרומפטר, שלט
+├── index.html              # האפליקציה — UI, מצב, פרומפטר, שלט
+├── remote.html             # שלט מרחוק — פותחים במכשיר שני, שולט מרחוק
 ├── manifest.webmanifest    # PWA — שם, אייקונים, standalone, רקע שחור
 ├── sw.js                   # Service Worker — cache-first לשל אפליקציה, network-first ל-/api/*
 ├── icon.svg                # אייקון וקטורי
@@ -14,7 +15,8 @@ elev8-prompter/
 ├── netlify.toml            # publish=".", functions=netlify/functions
 ├── package.json            # תלות: @netlify/blobs
 └── netlify/functions/
-    └── sync.js             # GET/PUT /api/sync — קורא/כותב ל-Netlify Blobs עם מיזוג בצד שרת
+    ├── sync.js             # GET/PUT /api/sync — סקריפטים/הגדרות/keymap ל-Netlify Blobs
+    └── cmd.js              # GET/PUT /api/cmd — פקודות שלט־רחוק (play/pause/speed/...)
 ```
 
 ## איך עובד הסנכרון
@@ -45,6 +47,15 @@ elev8-prompter/
 - `err` (אדום) — "אין חיבור"
 
 בלי חלונות קופצים, בלי alert/prompt/confirm.
+
+## שלט־מרחוק (remote.html)
+
+- פתח את `/remote.html` במכשיר שני — טלפון/טאבלט.
+- כפתורים גדולים: Play/Pause, מהירות ±, פונט ±, קפיצה, restart, exit, הפעל פרומפטר.
+- **קנאל פקודות** — `netlify/functions/cmd.js`, blob key `cmd-v1`. הפורמט: `{ts, cmd, payload}`.
+- הראשי (`index.html`) מבצע polling ל-`/api/cmd` כל 700ms (350ms במסך הפרומפטר). כל שינוי ב-`ts` = פקודה חדשה לביצוע.
+- **iOS BT camera-remotes** — הראשי גם מפעיל MediaSession + audio שקט (`primeMediaSession()`) בכניסה למסך שלט/פרומפטר, ומתרגם `play/pause/next/prev/seek` ל-`handleKey()`. שלטי Volume-only של iOS Safari לא נקלטים ברמת הדפדפן; במקרה כזה עדיף להשתמש ב-`remote.html`.
+- **עריכה מסונכרנת** — טקסט/שם סקריפט נערך ב-`remote.html`, נדחף ל-`/api/sync` עם debounce של 800ms, נקלט בראשי בסקר הבא (עד 10s, או מיידית כשחוזר לפוקוס).
 
 ## PWA
 

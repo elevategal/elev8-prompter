@@ -1,5 +1,5 @@
-const VERSION = 'elev8-v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
+const VERSION = 'elev8-v2';
+const APP_SHELL = ['/', '/index.html', '/remote.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(APP_SHELL).catch(()=>{})));
