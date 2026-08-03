@@ -1,4 +1,4 @@
-const VERSION = 'elev8-v2';
+const VERSION = 'elev8-v3';
 const APP_SHELL = ['/', '/index.html', '/remote.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {

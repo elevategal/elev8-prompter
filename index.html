@@ -77,6 +77,20 @@
   #scrollWrap{flex:1;overflow:hidden;position:relative}
   #scrollContent{position:absolute;top:0;right:0;left:0;padding:45vh 0 60vh 0;will-change:transform}
   #promptText{margin:0 auto;white-space:pre-wrap;word-break:break-word;font-weight:700;text-align:center;line-height:1.7;direction:rtl}
+  #promptText .chapter{padding:0.6em 0}
+  #promptText .chapter + .chapter{margin-top:1.2em;border-top:1px dashed rgba(127,209,200,.25);padding-top:1.2em}
+  #chapterBadge{
+    position:fixed;top:16px;right:16px;z-index:11;
+    background:rgba(20,22,26,.85);border:1px solid rgba(127,209,200,.4);
+    color:var(--glass);font-size:13px;font-weight:700;
+    padding:6px 12px;border-radius:20px;backdrop-filter:blur(6px);
+    transition:opacity .3s;pointer-events:none;user-select:none;
+    display:none;
+  }
+  #chapterBadge.show{display:block}
+  #chapterBadge.hidden{opacity:0}
+  .pbtn.chnav{padding:12px 14px}
+  .pbtn.chnav.dim{opacity:.35}
   .mirrorH #scrollWrap{transform:scaleX(-1)}
   .mirrorV #scrollWrap{transform:scaleY(-1)}
   .mirrorH.mirrorV #scrollWrap{transform:scale(-1,-1)}
@@ -217,12 +231,15 @@
 <!-- ========== PROMPTER ========== -->
 <div class="screen" id="prompter">
   <div id="guideLine"></div>
+  <div id="chapterBadge"></div>
   <div id="scrollWrap"><div id="scrollContent"><div id="promptText"></div></div></div>
   <div id="promptBar">
     <button class="pbtn" onclick="exitPrompt()">✕</button>
+    <button class="pbtn chnav" id="prevChBtn" onclick="prevChapter()" title="פרק קודם">⏮</button>
     <button class="pbtn" onclick="changeSpeed(-5)">−</button>
     <button class="pbtn play" id="playBtn" onclick="togglePlay()">▶</button>
     <button class="pbtn" onclick="changeSpeed(5)">+</button>
+    <button class="pbtn chnav" id="nextChBtn" onclick="nextChapter()" title="פרק הבא">⏭</button>
     <div id="speedShow">40</div>
     <button class="pbtn" onclick="restartScroll()">⟲</button>
   </div>
@@ -260,15 +277,17 @@ const S = {
 };
 
 const ACTIONS = [
-  {id:'play',    name:'התחל / עצור'},
-  {id:'faster',  name:'מהירות +'},
-  {id:'slower',  name:'מהירות −'},
-  {id:'fontUp',  name:'פונט +'},
-  {id:'fontDown',name:'פונט −'},
-  {id:'jumpBack',name:'קפיצה אחורה'},
-  {id:'jumpFwd', name:'קפיצה קדימה'},
-  {id:'restart', name:'חזרה להתחלה'},
-  {id:'exit',    name:'יציאה'},
+  {id:'play',        name:'התחל / עצור'},
+  {id:'faster',      name:'מהירות +'},
+  {id:'slower',      name:'מהירות −'},
+  {id:'fontUp',      name:'פונט +'},
+  {id:'fontDown',    name:'פונט −'},
+  {id:'jumpBack',    name:'קפיצה אחורה'},
+  {id:'jumpFwd',     name:'קפיצה קדימה'},
+  {id:'chapterPrev', name:'פרק קודם'},
+  {id:'chapterNext', name:'פרק הבא'},
+  {id:'restart',     name:'חזרה להתחלה'},
+  {id:'exit',        name:'יציאה'},
 ];
 const DEFAULT_MAP = {
   play:[' ','Enter','MediaPlayPause'],
@@ -278,6 +297,8 @@ const DEFAULT_MAP = {
   fontDown:['ArrowRight'],
   jumpBack:[],
   jumpFwd:[],
+  chapterPrev:[],
+  chapterNext:[],
   restart:['Home'],
   exit:['Escape'],
 };
@@ -515,9 +536,50 @@ const promptBar=document.getElementById('promptBar');
 const guideLine=document.getElementById('guideLine');
 let barTimer=null;
 
+function parseChapters(text){
+  const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const lines = (text||'').split('\n');
+  const chapters = [];
+  let out = '';
+  let inChapter = false, buffer = [];
+  const flushChapter = ()=>{
+    const body = buffer.join('\n').trim();
+    if (body){
+      const id = 'ch-' + chapters.length;
+      const preview = body.replace(/\s+/g,' ').slice(0,40) + (body.length>40?'…':'');
+      chapters.push({id, title:'פרק ' + (chapters.length+1), preview});
+      out += `<div class="chapter" id="${id}">${esc(body)}</div>\n`;
+    }
+    buffer = [];
+  };
+  const flushOutside = (arr)=>{
+    const s = arr.join('\n');
+    if (s.trim()) out += esc(s) + '\n';
+  };
+  let outsideBuf = [];
+  for (const line of lines){
+    if (line.trim() === '**'){
+      if (inChapter){ flushChapter(); inChapter = false; }
+      else { flushOutside(outsideBuf); outsideBuf = []; inChapter = true; }
+    } else {
+      if (inChapter) buffer.push(line);
+      else outsideBuf.push(line);
+    }
+  }
+  if (inChapter) flushChapter();
+  else flushOutside(outsideBuf);
+  return {html: out, chapters};
+}
+
 function startPrompt(){
   const txt=scriptInput.value.trim();
-  promptText.textContent = txt || 'אין טקסט — חזור למסך הראשי והדבק סקריפט';
+  const parsed = parseChapters(txt);
+  S.chapters = parsed.chapters;
+  if (parsed.html){
+    promptText.innerHTML = parsed.html;
+  } else {
+    promptText.textContent = txt || 'אין טקסט — חזור למסך הראשי והדבק סקריפט';
+  }
   promptText.style.fontSize=S.font+'px';
   promptText.style.maxWidth=S.width+'%';
   scrollContent.style.paddingTop=S.startPad+'vh';
@@ -527,7 +589,62 @@ function startPrompt(){
   S.offset=0; S.playing=false;
   scrollContent.style.transform='translateY(0)';
   updatePlayUI(); showScreen('prompter'); showBar(); requestWake(); startWakeKeepAlive();
+  updateChapterUI();
   try{document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();}catch(e){}
+}
+
+function guideOffsetPx(){ return window.innerHeight * S.startPad / 100; }
+function currentChapterIndex(){
+  if (!S.chapters || !S.chapters.length) return -1;
+  const readY = S.offset + guideOffsetPx();
+  let idx = -1;
+  for (let i=0;i<S.chapters.length;i++){
+    const el = document.getElementById(S.chapters[i].id);
+    if (!el) continue;
+    if (el.offsetTop - 12 <= readY) idx = i; else break;
+  }
+  return idx;
+}
+function jumpToChapter(i){
+  if (!S.chapters || !S.chapters.length) return;
+  i = Math.max(0, Math.min(S.chapters.length-1, i));
+  const el = document.getElementById(S.chapters[i].id);
+  if (!el) return;
+  S.offset = Math.max(0, el.offsetTop - guideOffsetPx());
+  scrollContent.style.transform = `translateY(${-S.offset}px)`;
+  updateChapterUI(i);
+  showBarBriefly();
+}
+function nextChapter(){
+  if (!S.chapters || !S.chapters.length) return;
+  const cur = currentChapterIndex();
+  jumpToChapter(cur + 1);
+}
+function prevChapter(){
+  if (!S.chapters || !S.chapters.length) return;
+  const readY = S.offset + guideOffsetPx();
+  const cur = currentChapterIndex();
+  if (cur >= 0){
+    const el = document.getElementById(S.chapters[cur].id);
+    if (el && readY - el.offsetTop > 80) { jumpToChapter(cur); return; }
+  }
+  jumpToChapter(cur - 1);
+}
+function updateChapterUI(forcedIdx){
+  const badge = document.getElementById('chapterBadge');
+  const prevBtn = document.getElementById('prevChBtn');
+  const nextBtn = document.getElementById('nextChBtn');
+  const has = S.chapters && S.chapters.length > 0;
+  if (prevBtn) prevBtn.style.display = has ? '' : 'none';
+  if (nextBtn) nextBtn.style.display = has ? '' : 'none';
+  if (!has){ badge.classList.remove('show'); return; }
+  const idx = (typeof forcedIdx === 'number') ? forcedIdx : currentChapterIndex();
+  if (idx < 0){ badge.classList.remove('show'); return; }
+  const ch = S.chapters[idx];
+  badge.textContent = `${ch.title} · ${idx+1}/${S.chapters.length}`;
+  badge.classList.add('show');
+  if (prevBtn) prevBtn.classList.toggle('dim', idx <= 0);
+  if (nextBtn) nextBtn.classList.toggle('dim', idx >= S.chapters.length - 1);
 }
 function exitPrompt(){
   stopLoop(); S.playing=false; releaseWake();
@@ -539,6 +656,7 @@ function togglePlay(){
   if(S.playing){S.lastT=performance.now(); loop(); showBarBriefly();} else stopLoop();
 }
 function updatePlayUI(){ playBtn.textContent=S.playing?'❚❚':'▶'; speedShow.textContent=S.speed; }
+let chapterUiTick = 0;
 function loop(){
   S.raf=requestAnimationFrame(now=>{
     const dt=(now-S.lastT)/1000; S.lastT=now;
@@ -546,6 +664,7 @@ function loop(){
     const max=scrollContent.scrollHeight;
     if(S.offset>max){S.offset=max;S.playing=false;updatePlayUI();showBar();return;}
     scrollContent.style.transform=`translateY(${-S.offset}px)`;
+    if ((++chapterUiTick % 20) === 0) updateChapterUI();
     if(S.playing) loop();
   });
 }
@@ -813,10 +932,12 @@ function execRemoteCmd(cmd, payload){
     case 'slower':   if (inPrompter) changeSpeed(-5); break;
     case 'fontUp':   if (inPrompter) changeFont(4); break;
     case 'fontDown': if (inPrompter) changeFont(-4); break;
-    case 'jumpBack': if (inPrompter) jump(-120); break;
-    case 'jumpFwd':  if (inPrompter) jump(120); break;
-    case 'restart':  if (inPrompter) restartScroll(); break;
-    case 'exit':     if (inPrompter) exitPrompt(); break;
+    case 'jumpBack':    if (inPrompter) jump(-120); break;
+    case 'jumpFwd':     if (inPrompter) jump(120); break;
+    case 'chapterPrev': if (inPrompter) prevChapter(); break;
+    case 'chapterNext': if (inPrompter) nextChapter(); break;
+    case 'restart':     if (inPrompter) restartScroll(); break;
+    case 'exit':        if (inPrompter) exitPrompt(); break;
   }
 }
 pollCmd();
@@ -857,6 +978,8 @@ function handleKey(e){
     else if(act==='fontDown')changeFont(-4);
     else if(act==='jumpBack')jump(-120);
     else if(act==='jumpFwd')jump(120);
+    else if(act==='chapterPrev')prevChapter();
+    else if(act==='chapterNext')nextChapter();
     else if(act==='restart')restartScroll();
     else if(act==='exit')exitPrompt();
   } else {

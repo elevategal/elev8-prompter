@@ -81,6 +81,8 @@
   .cbtn.play.paused{background:var(--panel);border-color:var(--glass);color:var(--glass)}
   .cbtn.play.paused .lb{color:var(--dim)}
   .cbtn.danger{border-color:rgba(255,68,56,.4);color:var(--onair)}
+  .cbtn.chapter{border-color:rgba(127,209,200,.4);color:var(--glass)}
+  .cbtn.chapter .lb{color:rgba(127,209,200,.7)}
 
   .status{
     background:var(--panel);border:1px solid var(--line);border-radius:14px;
@@ -118,15 +120,18 @@
       <span class="lb" id="btnPlayLb">Play/Pause</span>
     </button>
 
-    <button class="cbtn" data-cmd="slower"><span class="em">🐢</span>מהירות <span class="lb">−</span></button>
+    <button class="cbtn chapter" data-cmd="chapterPrev"><span class="em">⏮</span>פרק<span class="lb">קודם</span></button>
     <button class="cbtn" data-cmd="restart"><span class="em">⟲</span>התחלה<span class="lb">Restart</span></button>
+    <button class="cbtn chapter" data-cmd="chapterNext"><span class="em">⏭</span>פרק<span class="lb">הבא</span></button>
+
+    <button class="cbtn" data-cmd="slower"><span class="em">🐢</span>מהירות <span class="lb">−</span></button>
+    <button class="cbtn" data-cmd="fontDown"><span class="em">A−</span>פונט<span class="lb">קטן</span></button>
     <button class="cbtn" data-cmd="faster"><span class="em">🐇</span>מהירות <span class="lb">+</span></button>
 
     <button class="cbtn" data-cmd="jumpBack"><span class="em">⏪</span>קפיצה<span class="lb">אחורה</span></button>
-    <button class="cbtn" data-cmd="fontDown"><span class="em">A−</span>פונט<span class="lb">קטן</span></button>
+    <button class="cbtn" data-cmd="fontUp"><span class="em">A+</span>פונט<span class="lb">גדול</span></button>
     <button class="cbtn" data-cmd="jumpFwd"><span class="em">⏩</span>קפיצה<span class="lb">קדימה</span></button>
 
-    <button class="cbtn" data-cmd="fontUp" style="grid-column:2"><span class="em">A+</span>פונט<span class="lb">גדול</span></button>
     <button class="cbtn danger" data-cmd="exit" style="grid-column:1"><span class="em">✕</span>יציאה<span class="lb">Exit</span></button>
     <button class="cbtn" data-cmd="start" style="grid-column:3"><span class="em">🎬</span>הפעל<span class="lb">מסך פרומפטר</span></button>
   </div>
@@ -138,7 +143,7 @@
   <input type="text" id="editName" placeholder="שם הסקריפט">
   <textarea id="editText" placeholder="טוען..."></textarea>
 
-  <div class="hint"><b>שים לב:</b> הפעולות "התחל", "מהירות", "קפיצה" וכו' עובדות רק כשמסך הפרומפטר פתוח במכשיר הראשי. שינויי טקסט מסתנכרנים תוך שנייה.</div>
+  <div class="hint"><b>שים לב:</b> הפעולות "התחל", "מהירות", "קפיצה" וכו' עובדות רק כשמסך הפרומפטר פתוח במכשיר הראשי. שינויי טקסט מסתנכרנים תוך שנייה.<br><br><b>פרקים:</b> עטוף כל חלק ב-<code>**</code> בשורה נפרדת בהתחלה ובסוף — כפתורי "פרק הבא/קודם" יקפצו ביניהם.</div>
 
   <div class="navback"><a href="/">← חזרה למסך הראשי</a></div>
 </main>
